@@ -1,4 +1,4 @@
-# Agentic Trust Gateway
+# AWS Agentic Trust
 
 A comprehensive gateway solution for managing and monitoring Model Context Protocol (MCP) interactions with built-in trust, security, and observability features.
 
@@ -9,9 +9,8 @@ The Agentic Trust Gateway serves as a secure, observable, and trustworthy interm
 ## Architecture
 
 - **Backend**: FastAPI-based REST API with SQLAlchemy ORM
-- **Frontend**: Next.js-based dashboard with real-time monitoring
-- **Bridge**: MCP protocol bridge for seamless integration
-- **Proxy**: Intelligent routing and security layer
+- **Frontend**: Next.js-based dashboard with real-time monitoring  
+- **Bridge**: Agent-aware MCP protocol bridge for filtered multi-tenant access
 
 ## Key Features
 
@@ -28,15 +27,16 @@ The Agentic Trust Gateway serves as a secure, observable, and trustworthy interm
 - Comprehensive API documentation
 
 ### 🔧 Management
-- Agent configuration and lifecycle management
+- MCP instance configuration and lifecycle management
+- Registry for MCP server management
 - Resource utilization tracking
 - Error handling and recovery mechanisms
-- Scalable deployment options
+- User management and authentication
 
 ## Quick Start
 
 ### Prerequisites
-- Python 3.9+
+- Python 3.10+
 - Node.js 18+
 - UV (fast Python package manager)
 
@@ -44,15 +44,15 @@ The Agentic Trust Gateway serves as a secure, observable, and trustworthy interm
 
 1. **Clone the repository**
    ```bash
-   git clone <repository-url>
-   cd simple_mcp
+   git clone git@github.com:subramanya1997/aws-agentic-trust.git
+   cd aws-agentic-trust
    ```
 
 2. **Backend Setup**
    ```bash
    cd agentictrust
    uv sync --all-extras
-   uv run uvicorn agentictrust.backend.main:app --reload --port 8000
+   uv run uvicorn agentictrust.backend.main:app --reload --port 8001
    ```
 
 3. **Frontend Setup**
@@ -62,10 +62,17 @@ The Agentic Trust Gateway serves as a secure, observable, and trustworthy interm
    npm run dev
    ```
 
-4. **Access the Dashboard**
+4. **Bridge Server (Optional)**
+   ```bash
+   cd agentictrust
+   uv run python -m agentictrust.backend.bridge --transport sse --port 8100
+   ```
+
+5. **Access the Dashboard**
    - Frontend: http://localhost:3000
-   - API Documentation: http://localhost:8000/docs
-   - ReDoc: http://localhost:8000/redoc
+   - API Documentation: http://localhost:8001/docs
+   - ReDoc: http://localhost:8001/redoc
+   - Bridge SSE: http://localhost:8100/sse
 
 ## Development
 
@@ -77,26 +84,90 @@ uv run pytest
 
 ### Code Formatting
 ```bash
-uv run black .
-uv run isort .
+cd agentictrust
+uv run black backend/
+uv run isort backend/
 ```
 
 ### Linting
 ```bash
-uv run flake8 .
+cd agentictrust
+uv run flake8 backend/
+```
+
+### Using Make Commands
+```bash
+# Start all services
+make all
+
+# Start individual services
+make backend      # Backend on port 8001
+make frontend     # Frontend on port 3000
+make bridge       # Bridge on port 8100
+
+# Development mode
+make dev-backend
+make dev-frontend
+make dev-bridge
+
+# Install dependencies
+make install
+
+# Database operations
+make db-reset
+make backend-db-init
+
+# Code quality
+make format-backend
+make lint-backend
+make test-backend
+
+# Health check
+make health-check
 ```
 
 ## Project Structure
 
 ```
-├── agentictrust/          # Main application
-│   ├── backend/           # FastAPI backend service
-│   ├── frontend/          # Next.js dashboard
-│   └── tests/             # Test suite
-├── proxy/                 # MCP proxy layer
-├── examples/              # Usage examples
-└── docs/                  # Documentation
+├── agentictrust/              # Main application
+│   ├── backend/               # FastAPI backend service
+│   │   ├── api/               # REST API endpoints
+│   │   ├── bridge/            # Agent-aware MCP bridge
+│   │   ├── config/            # Configuration management
+│   │   ├── core/              # Core business logic
+│   │   ├── data/              # Data models and database
+│   │   ├── schemas/           # Pydantic schemas
+│   │   └── scripts/           # Utility scripts
+│   ├── frontend/              # Next.js dashboard
+│   │   ├── src/app/           # Next.js app router
+│   │   ├── src/components/    # React components
+│   │   └── public/            # Static assets
+│   ├── pyproject.toml         # Python dependencies
+│   └── uv.lock               # Dependency lock file
+├── Makefile                   # Development commands
+└── README.md                  # This file
 ```
+
+## API Endpoints
+
+The backend provides RESTful APIs for:
+
+- **MCP Registry**: `/api/v1/registry` - MCP server management
+- **MCP Instances**: `/api/v1/mcp-instances` - Instance configuration
+- **Users**: `/api/v1/users` - User management
+- **Capabilities**: `/api/v1/capabilities` - Capability discovery
+- **Logs**: `/api/v1/logs` - Activity monitoring
+- **Usage Stats**: `/api/v1/usage` - Usage analytics
+- **Bridge**: `/api/v1/bridge` - MCP bridge endpoints
+
+## Bridge Server
+
+The bridge server provides multi-tenant MCP access with per-agent filtering:
+
+- Authenticates agents via HTTP Basic auth
+- Filters tools, resources, and prompts based on agent permissions
+- Supports SSE, stdio, and HTTP transports
+- Aggregates multiple upstream MCP servers
 
 ## Contributing
 
@@ -104,7 +175,8 @@ uv run flake8 .
 2. Create a feature branch
 3. Make your changes
 4. Add tests for new functionality
-5. Submit a pull request
+5. Run code formatting and linting
+6. Submit a pull request
 
 ## License
 

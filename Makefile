@@ -1,4 +1,4 @@
-# Makefile for running simple_mcp services
+# Makefile for AWS Agentic Trust
 # Usage: make [target]
 
 # Variables
@@ -6,7 +6,6 @@ PYTHON := python3
 NPM := npm
 BACKEND_PORT := 8001
 FRONTEND_PORT := 3000
-PROXY_PORT := 8000
 BRIDGE_PORT := 8100
 
 # Colors for terminal output
@@ -20,11 +19,10 @@ NC := \033[0m # No Color
 
 # Help command
 help:
-	@echo "$(GREEN)Simple MCP Services Makefile$(NC)"
+	@echo "$(GREEN)AWS Agentic Trust Makefile$(NC)"
 	@echo "$(YELLOW)Available targets:$(NC)"
 	@echo "  $(GREEN)backend$(NC)      - Run the backend server (FastAPI on port $(BACKEND_PORT))"
 	@echo "  $(GREEN)frontend$(NC)     - Run the frontend server (Next.js on port $(FRONTEND_PORT))"
-	@echo "  $(GREEN)proxy$(NC)        - Run the proxy server (MCP Proxy on port $(PROXY_PORT))"
 	@echo "  $(GREEN)bridge$(NC)       - Run the bridge server (Agent-Aware MCP Bridge on port $(BRIDGE_PORT))"
 	@echo "  $(GREEN)all$(NC)          - Run all services concurrently"
 	@echo ""
@@ -56,28 +54,23 @@ help:
 # Run backend server
 backend:
 	@echo "$(GREEN)Starting backend server on port $(BACKEND_PORT)...$(NC)"
-	cd agentictrust && PYTHONPATH=.. uv run uvicorn agentictrust.backend.main:app --reload --port $(BACKEND_PORT)
+	cd agentictrust && PYTHONPATH=. uv run uvicorn agentictrust.backend.main:app --reload --port $(BACKEND_PORT)
 
 # Run frontend server
 frontend:
 	@echo "$(GREEN)Starting frontend server on port $(FRONTEND_PORT)...$(NC)"
 	cd agentictrust/frontend && $(NPM) run dev
 
-# Run proxy server
-proxy:
-	@echo "$(GREEN)Starting proxy server...$(NC)"
-	cd agentictrust && PYTHONPATH=.. PROXY_TRANSPORT=sse AGENTICTRUST_SERVER_URL=http://localhost:$(BACKEND_PORT) uv run python ../examples/start_proxy_server.py
-
 # Run bridge server
 bridge:
 	@echo "$(GREEN)Starting bridge server on port $(BRIDGE_PORT)...$(NC)"
-	cd agentictrust && PYTHONPATH=.. uv run python -m agentictrust.backend.bridge --transport sse --port $(BRIDGE_PORT)
+	cd agentictrust && PYTHONPATH=. uv run python -m agentictrust.backend.bridge --transport sse --port $(BRIDGE_PORT)
 
 # Run all services concurrently
 all:
 	@echo "$(GREEN)Starting all services...$(NC)"
 	@echo "$(YELLOW)Note: This will run all services in parallel. Use Ctrl+C to stop all.$(NC)"
-	@make -j4 backend frontend proxy bridge
+	@make -j3 backend frontend bridge
 
 # Install all dependencies
 install: install-backend install-frontend
@@ -105,11 +98,8 @@ clean:
 # Show logs (basic implementation - can be extended)
 logs:
 	@echo "$(YELLOW)Showing recent logs...$(NC)"
-	@if [ -f .agentictrust/db/agentictrust.db ]; then \
+	@if [ -f $$HOME/.agentictrust/db/agentictrust.db ]; then \
 		echo "$(GREEN)Backend database exists$(NC)"; \
-	fi
-	@if [ -f .proxy/db/proxy.db ]; then \
-		echo "$(GREEN)Proxy database exists$(NC)"; \
 	fi
 
 # Stop all services
@@ -117,31 +107,26 @@ stop:
 	@echo "$(RED)Stopping all services...$(NC)"
 	@pkill -f "uvicorn.*agentictrust.backend.main:app" || true
 	@pkill -f "next dev" || true
-	@pkill -f "start_proxy_server.py" || true
 	@pkill -f "agentictrust.backend.bridge" || true
 	@echo "$(GREEN)All services stopped!$(NC)"
 
 # Development targets with specific configurations
 dev-backend:
 	@echo "$(GREEN)Starting backend in development mode with auto-reload...$(NC)"
-	cd agentictrust && PYTHONPATH=.. ENVIRONMENT=development DEBUG=true uv run uvicorn agentictrust.backend.main:app --reload --port $(BACKEND_PORT) --log-level debug
+	cd agentictrust && PYTHONPATH=. ENVIRONMENT=development DEBUG=true uv run uvicorn agentictrust.backend.main:app --reload --port $(BACKEND_PORT) --log-level debug
 
 dev-frontend:
-	@echo "$(GREEN)Starting frontend in development mode with turbopack...$(NC)"
+	@echo "$(GREEN)Starting frontend in development mode...$(NC)"
 	cd agentictrust/frontend && $(NPM) run dev
-
-dev-proxy:
-	@echo "$(GREEN)Starting proxy in development mode...$(NC)"
-	cd agentictrust && PYTHONPATH=.. PROXY_TRANSPORT=sse AGENTICTRUST_SERVER_URL=http://localhost:$(BACKEND_PORT) uv run python ../examples/start_proxy_server.py
 
 dev-bridge:
 	@echo "$(GREEN)Starting bridge in development mode with debug logging...$(NC)"
-	cd agentictrust && PYTHONPATH=.. uv run python -m agentictrust.backend.bridge --transport sse --port $(BRIDGE_PORT) --log-level DEBUG
+	cd agentictrust && PYTHONPATH=. uv run python -m agentictrust.backend.bridge --transport sse --port $(BRIDGE_PORT) --log-level DEBUG
 
 # Production targets
 prod-backend:
 	@echo "$(GREEN)Starting backend in production mode...$(NC)"
-	cd agentictrust && PYTHONPATH=.. ENVIRONMENT=production uv run uvicorn agentictrust.backend.main:app --host 0.0.0.0 --port $(BACKEND_PORT) --workers 4
+	cd agentictrust && PYTHONPATH=. ENVIRONMENT=production uv run uvicorn agentictrust.backend.main:app --host 0.0.0.0 --port $(BACKEND_PORT) --workers 4
 
 prod-frontend:
 	@echo "$(GREEN)Building and starting frontend in production mode...$(NC)"
@@ -152,7 +137,7 @@ db-reset:
 	@echo "$(RED)Resetting databases...$(NC)"
 	# Remove backend DB in user home (~/.agentictrust)
 	rm -f $$HOME/.agentictrust/db/*.db 2>/dev/null || true
-	# Remove any local project DB (proxy default location)
+	# Remove any local project DB
 	rm -f .agentictrust/db/*.db 2>/dev/null || true
 	# Remove backup copies if any
 	rm -f $$HOME/.agentictrust/backups/*.db 2>/dev/null || true
@@ -162,13 +147,13 @@ db-reset:
 # Backend-specific database operations
 backend-db-init:
 	@echo "$(YELLOW)Initializing backend database...$(NC)"
-	cd agentictrust && PYTHONPATH=.. ENVIRONMENT=development uv run python -c "import asyncio; from agentictrust.backend.config.database import create_tables; asyncio.run(create_tables())"
+	cd agentictrust && PYTHONPATH=. ENVIRONMENT=development uv run python -c "import asyncio; from agentictrust.backend.config.database import create_tables; asyncio.run(create_tables())"
 	@echo "$(GREEN)Backend database initialized!$(NC)"
 
 # Backend testing
 test-backend:
 	@echo "$(YELLOW)Running backend tests...$(NC)"
-	cd agentictrust && PYTHONPATH=.. uv run pytest -v
+	cd agentictrust && PYTHONPATH=. uv run pytest -v
 
 # Backend code formatting and linting
 format-backend:
@@ -204,10 +189,18 @@ health-check:
 	@echo "$(YELLOW)Checking service health...$(NC)"
 	@curl -s http://localhost:$(BACKEND_PORT)/health > /dev/null && echo "$(GREEN)✓ Backend is healthy$(NC)" || echo "$(RED)✗ Backend is not responding$(NC)"
 	@curl -s http://localhost:$(FRONTEND_PORT) > /dev/null && echo "$(GREEN)✓ Frontend is healthy$(NC)" || echo "$(RED)✗ Frontend is not responding$(NC)"
-	@curl -s http://localhost:$(PROXY_PORT)/logs > /dev/null && echo "$(GREEN)✓ Proxy is healthy$(NC)" || echo "$(RED)✗ Proxy is not responding$(NC)"
-	@curl -s http://localhost:$(BRIDGE_PORT) > /dev/null && echo "$(GREEN)✓ Bridge is healthy$(NC)" || echo "$(RED)✗ Bridge is not responding$(NC)"
+	@curl -s http://localhost:$(BRIDGE_PORT)/info > /dev/null && echo "$(GREEN)✓ Bridge is healthy$(NC)" || echo "$(RED)✗ Bridge is not responding$(NC)"
 
-# Docker targets (if needed in future)
+# Git helpers
+git-status:
+	@echo "$(YELLOW)Git status:$(NC)"
+	@git status
+
+git-log:
+	@echo "$(YELLOW)Recent commits:$(NC)"
+	@git log --oneline -10
+
+# Docker targets (placeholder for future implementation)
 docker-build:
 	@echo "$(YELLOW)Docker support not yet implemented$(NC)"
 
@@ -217,8 +210,8 @@ docker-up:
 docker-down:
 	@echo "$(YELLOW)Docker support not yet implemented$(NC)"
 
-.PHONY: help backend frontend proxy bridge all install install-backend install-frontend clean logs stop \
-        dev-backend dev-frontend dev-proxy dev-bridge prod-backend prod-frontend db-reset health-check \
+.PHONY: help backend frontend bridge all install install-backend install-frontend clean logs stop \
+        dev-backend dev-frontend dev-bridge prod-backend prod-frontend db-reset health-check \
         backend-db-init test-backend format-backend lint-backend \
-        uv-update uv-venv uv-show uv-env-info \
+        uv-update uv-venv uv-show uv-env-info git-status git-log \
         docker-build docker-up docker-down 
