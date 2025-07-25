@@ -1,0 +1,4 @@
+{
+  "registry_url": "http://localhost:8001",
+  "proxy_url": "http://localhost:8000"
+}
